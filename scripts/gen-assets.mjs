@@ -52,9 +52,10 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(WORK, { recursive: true });
 
 const LOOK =
-  'a short, plump, slightly hunched 80 year old Italian grandmother (nonna) with small round reading glasses, ' +
-  'grey hair in a bun, black cardigan over a floral house dress, a faded kitchen apron, thick dark stockings and ' +
-  'beige felt house slippers, holding an old worn straw broom';
+  'a very old 85 year old Italian grandmother (nonna), deeply wrinkled face, short and plump, round soft belly, ' +
+  'with a stooped, hunched back and rounded shoulders, small oval wire-rimmed reading glasses low on her nose, ' +
+  'thin white-grey hair in a small bun, black wool cardigan over a dark floral house dress, a faded kitchen apron ' +
+  'tied at the waist, thick dark stockings and beige felt house slippers, holding an old worn straw broom';
 const FRAMING =
   'Full body photo, she stands small in the centre of the frame with generous empty space above her head, ' +
   'below her feet and on both sides. Plain flat light grey studio background, soft even lighting, sharp focus, photorealistic.';
@@ -155,6 +156,9 @@ function findRef(name) {
 async function referenceImage() {
   if (givenImage) return { file: givenImage, url: await uploadDataUri(givenImage) };
   const cached = path.join(WORK, 'nonna.png');
+  // A hand-padded version (extra margin so motion stays in frame) wins.
+  const padded = path.join(WORK, 'nonna-padded.jpg');
+  if (fs.existsSync(padded)) return { file: padded, url: await uploadDataUri(padded) };
   if (fs.existsSync(cached) && fs.existsSync(cached + '.url')) {
     return { file: cached, url: fs.readFileSync(cached + '.url', 'utf8').trim() };
   }
