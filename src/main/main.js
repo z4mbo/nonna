@@ -19,6 +19,7 @@ let overlay = null;
 let tray = null;
 let busy = false;
 let lastAutoVisit = 0;
+const launchedAt = Date.now();
 
 function loadSettings() {
   try {
@@ -210,13 +211,14 @@ if (!app.requestSingleInstanceLock()) {
     }
     refreshMenus();
     watchClutter();
-    // Launching the app is a visit; the busy guard drops macOS's launch-time `activate`.
-    overlay.webContents.once('did-finish-load', () => callNonna());
+    // Launching the app is a visit (the busy guard drops macOS's launch-time
+    // `activate`), unless started quietly, e.g. at login.
+    if (!process.argv.includes('--no-visit')) overlay.webContents.once('did-finish-load', () => callNonna());
   });
 
   // macOS: every Dock click while running.
   app.on('activate', () => {
-    if (overlay && !overlay.webContents.isLoading()) callNonna();
+    if (overlay && !overlay.webContents.isLoading() && Date.now() - launchedAt > 1500) callNonna();
   });
 
   // Nonna lives in the dock/tray; closing the overlay never quits the app.
