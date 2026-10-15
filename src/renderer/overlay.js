@@ -21,7 +21,7 @@ const CLUSTER_RADIUS = 300; // icons this close to the first are swept together
 const BROOM = { x: 0.36, y: 0.97 };
 
 const ICONS = {
-  Images: '🖼️', Screenshots: '📸', Documents: '📄', Spreadsheets: '📊', Presentations: '📽️',
+  Images: '🖼️', Screenshots: '📸', 'Screen Recordings': '📹', Documents: '📄', Spreadsheets: '📊', Presentations: '📽️',
   Videos: '🎞️', Audio: '🎵', Archives: '🗜️', Installers: '💿', Code: '📜', Apps: '📦', Other: '📄',
 };
 
@@ -424,8 +424,35 @@ window.nonna.onSwept((res) => onSwept(res));
 const requestSweep = (indices) =>
   new Promise((resolve) => {
     onSwept = resolve;
-    window.nonna.sweep(indices);
+    window.nonna.sweep({ indices });
   });
+
+// A desktop with more files than fit on screen: after the visible icons,
+// the rest goes in ~60 time-boxed batches while she sweeps in place, so the
+// show takes seconds whether that's 300 or 21 million files.
+async function sweepRest(rest) {
+  const perBatch = Math.max(1, Math.ceil(rest / 60));
+  await play('sweep', { loop: true });
+  const stopDust = dustWhileSweeping();
+  for (;;) {
+    const res = await new Promise((resolve) => {
+      onSwept = resolve;
+      window.nonna.sweep({ rest: perBatch });
+    });
+    res.categories?.forEach((c, k) =>
+      setTimeout(() => {
+        const b = broomPoint();
+        const item = { x: rand(40, W() - 40), y: rand(40, H() * 0.6), category: c };
+        tumble(makeMote(item), item, Promise.resolve(null));
+        if (k === 0) Sfx.pop(rand(0.8, 1.2));
+      }, k * 40),
+    );
+    if (res.done || !res.swept) break;
+    await sleep(90);
+  }
+  await sleep(500);
+  stopDust();
+}
 
 async function sweepDesktop(items) {
   layoutMissing(items);
@@ -460,7 +487,7 @@ async function sweepDesktop(items) {
 
 // ---- the visit ---------------------------------------------------------------
 
-async function visit({ count, items, muted, recordAudio }) {
+async function visit({ count, items, rest = 0, muted, recordAudio }) {
   await probed;
   Sfx.setMuted(muted);
   const audioStart = recordAudio ? Sfx.startRecording() : null;
@@ -488,6 +515,7 @@ async function visit({ count, items, muted, recordAudio }) {
 
     await icons;
     await sweepDesktop(items);
+    if (rest) await sweepRest(rest);
 
     // Back down to the floor to approve.
     await walkTo({ x: pos.x, y: H() - h });

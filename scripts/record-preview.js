@@ -70,16 +70,22 @@ app.whenReady().then(async () => {
   await new Promise((r) => setTimeout(r, 1200));
 
   let i = 0;
-  ipcMain.on('nonna:sweep', () => {
-    if (i >= FILES.length) return win.webContents.send('nonna:swept', { done: true });
-    const [name, category] = FILES[i];
-    win.webContents.executeJavaScript(`window.__sweepIcon(${i}); true`);
-    i++;
-    win.webContents.send('nonna:swept', { name, category, done: i >= FILES.length });
+  let left = FILES.length;
+  ipcMain.on('nonna:sweep', (_e, { indices = [] } = {}) => {
+    for (const k of indices) win.webContents.executeJavaScript(`window.__sweepIcon(${k}); true`);
+    left -= indices.length;
+    win.webContents.send('nonna:swept', { indices, folders: {}, remaining: left, done: left <= 0 });
   });
   ipcMain.on('nonna:hover', () => {});
   const finished = new Promise((r) => ipcMain.once('nonna:finished', r));
-  win.webContents.send('nonna:start', { count: FILES.length });
+  // Same grid as desktopScript: columns of six from the top-right corner.
+  const items = FILES.map(([name, category], k) => ({
+    name,
+    category,
+    x: W - (16 + Math.floor(k / 6) * 100) - 46,
+    y: 16 + (k % 6) * 100 + 26,
+  }));
+  win.webContents.send('nonna:start', { count: FILES.length, items, rest: 0 });
   await finished;
   // A beat of clean desktop after she leaves.
   await new Promise((r) => setTimeout(r, 1200));

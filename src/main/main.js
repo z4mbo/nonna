@@ -13,7 +13,24 @@ const WATCH_INTERVAL_MS = 60_000;
 const AUTO_VISIT_COOLDOWN_MS = 60 * 60_000;
 
 const settingsFile = path.join(app.getPath('userData'), 'settings.json');
-const moveLog = new organizer.MoveLog(path.join(app.getPath('userData'), 'moves.json'));
+const moveLog = new organizer.MoveLog(path.join(app.getPath('userData'), 'moves'));
+
+// Logs from 0.1 lived in one moves.json; turn each session into its own
+// NDJSON file so "Undo last tidy-up" still finds them.
+function migrateMoveLog() {
+  const old = path.join(app.getPath('userData'), 'moves.json');
+  if (!fs.existsSync(old)) return;
+  try {
+    const dir = path.join(app.getPath('userData'), 'moves');
+    fs.mkdirSync(dir, { recursive: true });
+    for (const s of JSON.parse(fs.readFileSync(old, 'utf8')).sessions || []) {
+      if (s.entries?.length) fs.writeFileSync(path.join(dir, `${s.at}.ndjson`), s.entries.map((e) => JSON.stringify(e)).join('\n') + '\n');
+    }
+    fs.renameSync(old, old + '.migrated');
+  } catch (err) {
+    console.error('move log migration failed', err);
+  }
+}
 
 let settings = { autoVisit: true, clutterThreshold: 15, confirmedFirstTidy: false, muted: false };
 let overlay = null;
@@ -87,6 +104,9 @@ async function callNonna({ auto = false } = {}) {
     busy = false;
   }
 }
+
+const MAX_VISIBLE = 300;
+const BATCH_MS = 100;
 
 function run(cmd, args) {
   return new Promise((resolve) => execFile(cmd, args, { timeout: 30000 }, (err, out) => resolve(err ? null : out)));
@@ -162,8 +182,12 @@ async function runShow(steps) {
   await new Promise((r) => setTimeout(r, steps.length ? 700 : 300));
   const area = screen.getPrimaryDisplay().workArea;
   const positions = await iconPositions();
+  // Only so many icons fit on a screen; she sweeps those one cluster at a
+  // time, and whatever is left (a desktop with millions of files) goes in
+  // time-boxed batches afterwards.
+  const visible = steps.slice(0, MAX_VISIBLE);
   const items = await Promise.all(
-    steps.map(async (s) => {
+    visible.map(async (s) => {
       const p = positions[s.name];
       return {
         name: s.name,
@@ -176,21 +200,43 @@ async function runShow(steps) {
   );
 
   return new Promise((resolve) => {
-    const entries = [];
+    const log = DRY_RUN ? null : moveLog.start();
     const moved = new Set();
+    let movedAny = false;
+    let next = visible.length; // first step of the batched remainder
 
-    const onSweep = async (e, indices) => {
-      if (e.sender !== overlay.webContents) return;
-      for (const i of indices) {
-        if (moved.has(i) || !steps[i]) continue;
-        moved.add(i);
-        if (DRY_RUN) continue;
-        try {
-          entries.push(organizer.moveOne(steps[i]));
-        } catch (err) {
-          console.error('move failed', steps[i].from, err);
-        }
+    const move = (i) => {
+      if (moved.has(i) || !steps[i]) return;
+      moved.add(i);
+      if (DRY_RUN) return;
+      try {
+        log.append(organizer.moveOne(steps[i]));
+        movedAny = true;
+      } catch (err) {
+        console.error('move failed', steps[i].from, err);
       }
+    };
+
+    // `req` is either { indices } for icons she walked to, or { rest: n } to
+    // move up to n of the remaining files within BATCH_MS.
+    const onSweep = async (e, req) => {
+      if (e.sender !== overlay.webContents) return;
+      if (req.rest) {
+        const t0 = Date.now();
+        const categories = [];
+        let n = 0;
+        while (next < steps.length && n < req.rest && (n === 0 || Date.now() - t0 < BATCH_MS)) {
+          if (categories.length < 3) categories.push(steps[next].category);
+          move(next++);
+          n++;
+        }
+        const done = moved.size >= steps.length;
+        if (done && movedAny) arrangeDesktop();
+        overlay.webContents.send('nonna:swept', { swept: n, categories, remaining: steps.length - next, done });
+        return;
+      }
+      const indices = req.indices || [];
+      indices.forEach(move);
       // Finder places new folders itself; tell the renderer where they are so
       // the icons can fly into them.
       const now = await iconPositions();
@@ -200,15 +246,15 @@ async function runShow(steps) {
         if (c && now[c]) folders[c] = { x: now[c].x - area.x, y: now[c].y - area.y };
       }
       const done = moved.size >= steps.length;
-      if (done && entries.length) arrangeDesktop();
-      overlay.webContents.send('nonna:swept', { indices, folders, done });
+      if (done && movedAny) arrangeDesktop();
+      overlay.webContents.send('nonna:swept', { indices, folders, remaining: steps.length - moved.size, done });
     };
 
     const onFinished = async (e) => {
       if (e.sender !== overlay.webContents) return;
       ipcMain.removeListener('nonna:sweep', onSweep);
       ipcMain.removeListener('nonna:finished', onFinished);
-      moveLog.addSession(entries);
+      log?.close();
       overlay.hide();
       overlay.setIgnoreMouseEvents(true, { forward: true });
       refreshMenus();
@@ -223,6 +269,7 @@ async function runShow(steps) {
     overlay.webContents.send('nonna:start', {
       count: steps.length,
       items,
+      rest: steps.length - visible.length,
       muted: settings.muted,
       recordAudio: !!process.env.NONNA_RECORD_AUDIO,
     });
@@ -239,21 +286,22 @@ function arrangeDesktop() {
 }
 
 function undoLast() {
-  const session = moveLog.popSession();
+  const session = moveLog.last();
   if (!session) {
     dialog.showMessageBox({ message: 'Nothing to undo. Nonna has not touched anything yet.' });
     return;
   }
-  const { restored, skipped } = organizer.undo(session.entries);
+  const { restored, skipped } = organizer.undo(session.entries());
+  session.drop();
   dialog.showMessageBox({
-    message: `Put back ${restored.length} item${restored.length === 1 ? '' : 's'}.`,
-    detail: skipped.length ? `${skipped.length} could not be restored because they were moved or replaced since.` : undefined,
+    message: `Put back ${restored.toLocaleString()} item${restored === 1 ? '' : 's'}.`,
+    detail: skipped ? `${skipped.toLocaleString()} could not be restored because they were moved or replaced since.` : undefined,
   });
   refreshMenus();
 }
 
 function buildMenu() {
-  const hasUndo = moveLog.read().sessions.length > 0;
+  const hasUndo = moveLog.count() > 0;
   return Menu.buildFromTemplate([
     { label: 'Call Nonna', click: () => callNonna() },
     { label: 'Undo last tidy-up', enabled: hasUndo, click: undoLast },
@@ -321,6 +369,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     loadSettings();
+    migrateMoveLog();
     createOverlay();
     const trayIcon = nativeImage.createFromPath(path.join(__dirname, '..', '..', 'assets', 'tray.png'));
     if (!trayIcon.isEmpty()) {

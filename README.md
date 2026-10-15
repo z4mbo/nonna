@@ -8,7 +8,9 @@ Nonna lives in your macOS Dock or Windows 11 taskbar. Click her (or let your des
 
 ## What she does
 
-- Moves loose desktop items into `Desktop/Nonna Tidy/<Category>` (Images, Screenshots, Documents, Spreadsheets, Presentations, Videos, Audio, Archives, Installers, Code, Apps, Folders, Other).
+- Moves loose desktop items into category folders on the desktop (Images, Screenshots, Screen Recordings, Documents, Spreadsheets, Presentations, Videos, Audio, Archives, Installers, Code, Apps, Other).
+- Fixed rules, no AI: a category with more than 100 files gets a folder per month (`Images/2026-10`), a month with more than 1,000 files gets a folder per day (`Images/2026-10/2026-10-15`). The same desktop always ends up the same way.
+- Fast on huge desktops: she sweeps in batches, so the show lasts a few seconds and the files move as fast as the disk allows (150,000 files in about 18 seconds in testing). The move log is streamed to disk, so even millions of files can be undone.
 - Never deletes anything and never overwrites: name clashes get a ` (2)` suffix.
 - Keeps a move log, so **Undo last tidy-up** in the Dock/tray menu puts everything back.
 - Asks before her very first tidy-up.
@@ -26,6 +28,14 @@ Try it safely on a fake desktop, without moving anything:
 ```bash
 NONNA_DESKTOP=/tmp/fake-desktop NONNA_DRY_RUN=1 npm start
 ```
+
+## Demo with 21,931,293 icons
+
+```bash
+npx electron scripts/record-mess.js   # -> docs/nonna-21-million.mp4
+```
+
+The files are simulated; the folder layout shown at the end comes from the real organizer rules.
 
 ## Nonna's animations
 
