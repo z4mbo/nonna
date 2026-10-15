@@ -1,0 +1,35 @@
+{
+  "name": "nonna",
+  "productName": "Nonna",
+  "version": "0.1.0",
+  "description": "An Italian nonna who storms onto your desktop, throws a ciabatta at you, and tidies everything into folders.",
+  "main": "src/main/main.js",
+  "author": "Alessandro Zambon",
+  "license": "MIT",
+  "homepage": "https://nonna.imbored.fun",
+  "repository": "github:z4mbo/nonna",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "assets": "node scripts/gen-assets.mjs",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "44.7.2",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "fun.imbored.nonna",
+    "productName": "Nonna",
+    "files": ["src/**/*", "assets/**/*", "package.json"],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }]
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64", "arm64"] }]
+    },
+    "nsis": { "oneClick": true, "createDesktopShortcut": false }
+  }
+}
