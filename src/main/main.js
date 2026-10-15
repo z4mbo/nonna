@@ -204,7 +204,7 @@ if (!app.requestSingleInstanceLock()) {
     createOverlay();
     const trayIcon = nativeImage.createFromPath(path.join(__dirname, '..', '..', 'assets', 'tray.png'));
     if (!trayIcon.isEmpty()) {
-      tray = new Tray(trayIcon);
+      tray = new Tray(trayIcon.resize({ height: process.platform === 'darwin' ? 18 : 16 }));
       tray.setToolTip('Nonna');
       tray.on('click', () => callNonna());
     }

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nonna — don't make Nonna angry</title>
+<meta name="description" content="A real Italian nonna lives in your Dock. When your desktop is a mess she throws her slipper at you, then sweeps every file into tidy folders. macOS and Windows.">
+<meta property="og:title" content="Nonna — don't make Nonna angry">
+<meta property="og:description" content="Keep your desktop clean. Or Nonna will clean it for you.">
+<meta property="og:image" content="https://nonna.imbored.fun/og.jpg">
+<meta property="og:url" content="https://nonna.imbored.fun">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,800;1,9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #fbf4e8;
+    --paper: #fffaf1;
+    --ink: #2a1a10;
+    --soft: #6b5545;
+    --tomato: #d4482b;
+    --tomato-dark: #a8331c;
+    --basil: #2f6b3a;
+    --line: #ead9c2;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--cream);
+    color: var(--ink);
+    font: 16px/1.6 Inter, -apple-system, "Segoe UI", sans-serif;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+  /* tablecloth stripe */
+  .cloth {
+    height: 14px;
+    background:
+      repeating-linear-gradient(90deg, var(--tomato) 0 22px, transparent 22px 44px),
+      repeating-linear-gradient(0deg, rgba(212,72,43,.35) 0 7px, transparent 7px 14px);
+  }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font: 800 22px Fraunces, Georgia, serif; text-decoration: none; }
+  .brand img { width: 38px; height: 38px; }
+  .gh { font-weight: 600; font-size: 14px; text-decoration: none; display: inline-flex; gap: 8px; align-items: center;
+        border: 1.5px solid var(--ink); border-radius: 999px; padding: 7px 14px; background: var(--paper); }
+  .gh:hover { background: var(--ink); color: var(--paper); }
+  .gh svg { width: 16px; height: 16px; }
+
+  .hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; padding: 32px 0 64px; }
+  h1 { font: 800 clamp(40px, 6vw, 68px)/1.02 Fraunces, Georgia, serif; margin: 0 0 18px; letter-spacing: -0.02em; }
+  h1 em { color: var(--tomato); font-style: italic; }
+  .lede { font-size: 19px; color: var(--soft); margin: 0 0 28px; max-width: 34ch; }
+
+  .downloads { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600;
+         border-radius: 14px; padding: 14px 20px; transition: transform .12s, background .12s; }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 20px; height: 20px; flex: none; }
+  .btn small { display: block; font-weight: 500; font-size: 12px; opacity: .8; line-height: 1.2; }
+  .btn span { line-height: 1.2; }
+  .primary { background: var(--tomato); color: #fff; box-shadow: 0 6px 0 var(--tomato-dark); }
+  .primary:hover { background: #df5233; }
+  .secondary { background: var(--paper); border: 1.5px solid var(--line); }
+  .secondary:hover { border-color: var(--ink); }
+  .alt { margin-top: 14px; font-size: 14px; color: var(--soft); }
+
+  .stage { position: relative; border-radius: 22px; overflow: hidden; background: #2b3a55;
+           box-shadow: 0 30px 60px -20px rgba(42,26,16,.45); aspect-ratio: 16 / 9; }
+  .stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  section { padding: 56px 0; border-top: 1.5px dashed var(--line); }
+  h2 { font: 700 clamp(28px, 4vw, 38px)/1.1 Fraunces, Georgia, serif; margin: 0 0 28px; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; counter-reset: s; }
+  .step { background: var(--paper); border: 1.5px solid var(--line); border-radius: 18px; padding: 20px; }
+  .step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 34px; height: 34px;
+                  border-radius: 50%; background: var(--ink); color: var(--paper); font: 700 16px Fraunces, serif; margin-bottom: 12px; }
+  .step h3 { margin: 0 0 6px; font: 700 19px Fraunces, Georgia, serif; }
+  .step p { margin: 0; color: var(--soft); font-size: 15px; }
+
+  .promise { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .promise div { padding: 4px 0; }
+  .promise b { display: block; font: 700 18px Fraunces, Georgia, serif; margin-bottom: 4px; }
+  .promise p { margin: 0; color: var(--soft); font-size: 15px; }
+
+  .folders { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  .folders span { background: var(--paper); border: 1.5px solid var(--line); border-radius: 10px; padding: 6px 12px; font-size: 14px; }
+
+  .note { background: #fff3d6; border: 1.5px solid #f0d79a; border-radius: 14px; padding: 16px 18px; font-size: 14px; color: #5c4520; }
+  .note code { background: rgba(0,0,0,.06); padding: 1px 6px; border-radius: 6px; font-size: 13px; }
+
+  .cta { text-align: center; }
+  .cta p { color: var(--soft); margin: 0 0 20px; }
+  footer { padding: 28px 0 40px; color: var(--soft); font-size: 14px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; gap: 28px; padding-top: 12px; }
+    .steps { grid-template-columns: 1fr 1fr; }
+    .promise { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 520px) {
+    .steps { grid-template-columns: 1fr; }
+    .btn { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="cloth"></div>
+<div class="wrap">
+  <header>
+    <a class="brand" href="/"><img src="icon.png" alt="">Nonna</a>
+    <a class="gh" href="https://github.com/z4mbo/nonna" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+      Star on GitHub <span id="stars"></span>
+    </a>
+  </header>
+
+  <div class="hero">
+    <div>
+      <h1>Don't make <em>Nonna</em> angry.</h1>
+      <p class="lede">Keep your desktop clean. Or a very real Italian grandmother will storm onto your screen, throw her slipper at you, and sweep every file into tidy folders.</p>
+      <div class="downloads" id="downloads">
+        <a class="btn primary" data-os="mac" href="https://github.com/z4mbo/nonna/releases/latest/download/Nonna-mac-arm64.dmg">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.17-1.53 2.65-.39 6.58 1.1 8.73.73 1.05 1.6 2.24 2.73 2.2 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.4 1.2-2.46-.03-.01-2.3-.88-2.3-3.49zM14.2 6.13c.6-.73 1.01-1.75.9-2.76-.87.03-1.92.58-2.54 1.31-.56.65-1.05 1.68-.92 2.67.97.08 1.96-.49 2.56-1.22z"/></svg>
+          <span>Download for Mac<small>Apple Silicon</small></span>
+        </a>
+        <a class="btn secondary" data-os="win" href="https://github.com/z4mbo/nonna/releases/latest/download/Nonna-win-x64.exe">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.5v7H3zm0 13 7.5 1v-7H3zm8.5 1.1L21 21v-8.5h-9.5zm0-15.2V11.5H21V3z"/></svg>
+          <span>Download for Windows<small>Windows 10 / 11</small></span>
+        </a>
+      </div>
+      <p class="alt">Intel Mac? <a href="https://github.com/z4mbo/nonna/releases/latest/download/Nonna-mac-x64.dmg">Get the Intel build</a> · <a href="https://github.com/z4mbo/nonna/releases/latest">All downloads</a></p>
+    </div>
+    <div class="stage">
+      <video src="nonna-demo.mp4" poster="poster.jpg" autoplay muted loop playsinline></video>
+    </div>
+  </div>
+
+  <section>
+    <h2>How a visit goes</h2>
+    <div class="steps">
+      <div class="step"><h3>Call her</h3><p>Click Nonna in the Dock or taskbar. Or let your desktop pile up — she notices on her own.</p></div>
+      <div class="step"><h3>She gets mad</h3><p>She storms in and her slipper hits your screen. You had it coming.</p></div>
+      <div class="step"><h3>She sweeps</h3><p>Every loose file flies into a folder on your desktop, sorted by kind.</p></div>
+      <div class="step"><h3>She approves</h3><p>A thumbs up, broom on the shoulder, and off she goes.</p></div>
+    </div>
+    <div class="folders">
+      <span>🖼️ Images</span><span>📸 Screenshots</span><span>📄 Documents</span><span>📊 Spreadsheets</span>
+      <span>📽️ Presentations</span><span>🎞️ Videos</span><span>🎵 Audio</span><span>🗜️ Archives</span>
+      <span>💿 Installers</span><span>📜 Code</span><span>📦 Apps</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>She's strict, not reckless</h2>
+    <div class="promise">
+      <div><b>Never deletes</b><p>Files are only moved into folders on your desktop. Nothing is ever thrown away or overwritten.</p></div>
+      <div><b>Undo anything</b><p>Every tidy-up is logged. "Undo last tidy-up" in the Dock menu puts everything back.</p></div>
+      <div><b>Your folders stay put</b><p>She only sorts loose files and apps. Folders you made are left exactly where they are.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="note">
+      <b>First launch on Mac:</b> Nonna is signed but not yet notarized by Apple. If macOS says it can't verify the app, right-click Nonna in Applications and choose <b>Open</b>. On Windows, choose <b>More info → Run anyway</b> in SmartScreen.
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2>Free and open source</h2>
+    <p>Made with an Electron overlay and a nonna generated with AI. Contributions welcome — she'd appreciate the help.</p>
+    <a class="btn primary" href="https://github.com/z4mbo/nonna" target="_blank" rel="noopener">⭐ Star Nonna on GitHub</a>
+  </section>
+
+  <footer>
+    <span>Nonna · MIT license</span>
+    <span>An <a href="https://imbored.fun">imbored.fun</a> thing</span>
+  </footer>
+</div>
+<script>
+  // Point the primary button at the visitor's OS.
+  (function () {
+    var ua = navigator.userAgent;
+    if (/Windows/.test(ua)) {
+      var box = document.getElementById('downloads');
+      box.insertBefore(box.querySelector('[data-os=win]'), box.firstChild);
+      box.querySelector('[data-os=win]').className = 'btn primary';
+      box.querySelector('[data-os=mac]').className = 'btn secondary';
+    }
+  })();
+  fetch('https://api.github.com/repos/z4mbo/nonna')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d && d.stargazers_count) document.getElementById('stars').textContent = '· ' + d.stargazers_count; })
+    .catch(function () {});
+</script>
+</body>
+</html>

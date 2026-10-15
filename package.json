@@ -22,14 +22,50 @@
   "build": {
     "appId": "fun.imbored.nonna",
     "productName": "Nonna",
-    "files": ["src/**/*", "assets/**/*", "package.json"],
+    "files": [
+      "src/**/*",
+      "assets/nonna/**/*",
+      "assets/slipper.png",
+      "assets/icon.png",
+      "assets/tray.png",
+      "package.json"
+    ],
     "mac": {
       "category": "public.app-category.utilities",
-      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }]
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png"
     },
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64", "arm64"] }]
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png"
     },
-    "nsis": { "oneClick": true, "createDesktopShortcut": false }
+    "nsis": {
+      "oneClick": true,
+      "createDesktopShortcut": false
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   }
 }
