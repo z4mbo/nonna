@@ -8,8 +8,8 @@ const vids = [...document.querySelectorAll('.clip')];
 const CLIP_DIR = '../../assets/nonna/';
 const STATES = ['angry', 'sweep', 'happy', 'leave'];
 // Moments inside the generated clips (seconds).
-const THROW_AT = 4.0; // slipper leaves her hand in angry.webm
-const WALK_AT = 1.2; // she starts walking in leave.webm
+const THROW_AT = 2.6; // slipper leaves her hand in angry.webm
+const WALK_AT = 2.2; // she starts walking in leave.webm
 const MARGIN = 24;
 const SWEEP_SPEED = 140; // px per second while pacing
 
@@ -105,10 +105,15 @@ function glideTo(px, ms, easing = 'ease-in-out') {
 }
 
 function fade(to, ms) {
-  return nonnaEl.animate([{ opacity: getComputedStyle(nonnaEl).opacity }, { opacity: to }], {
+  const anim = nonnaEl.animate([{ opacity: getComputedStyle(nonnaEl).opacity }, { opacity: to }], {
     duration: ms,
     fill: 'forwards',
-  }).finished;
+  });
+  // Commit the end value so cancelling animations later can't undo it.
+  return anim.finished.then(() => {
+    nonnaEl.style.opacity = to;
+    anim.cancel();
+  });
 }
 
 // The slipper flies out of her hand, spinning, and grows until it fills the
@@ -215,6 +220,7 @@ function pace() {
     const m = new DOMMatrixReadOnly(getComputedStyle(nonnaEl).transform);
     nonnaEl.getAnimations().forEach((a) => a.cancel());
     place(m.m41);
+    nonnaEl.style.opacity = 1;
   };
 }
 

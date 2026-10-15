@@ -9,7 +9,7 @@
 // Put refs/volto.jpg (face) and optionally refs/corpo.jpg (body) to base Nonna on real photos.
 // FAL_KEY comes from the environment or .env. Every paid call is recorded in
 // assets/.work/spend.json and the script refuses to go past NONNA_BUDGET_USD.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -42,7 +42,7 @@ const COST = {
   'fal-ai/flux/schnell': 0.01,
   'fal-ai/birefnet/v2': 0.02,
   'fal-ai/kling-video/v2.5-turbo/pro/image-to-video': 0.35,
-  'fal-ai/birefnet/v2/video': 0.1,
+  'fal-ai/birefnet/v2/video': 0.05, // ~$0.03 actual per 5 s clip on FAL's dashboard
 };
 const BUDGET = Number(process.env.NONNA_BUDGET_USD || 5);
 
@@ -71,22 +71,27 @@ const IN_FRAME =
 const CLIPS = {
   angry: {
     tail: true,
+    // The slipper flies at the camera after this; the app's own slipper takes
+    // over, so it doesn't count towards the crop.
+    cropUntil: 2.6,
     prompt:
       'The grandmother glares at the viewer, furious, shakes her fist and scolds, then quickly pulls one house slipper ' +
       'off her foot and hurls it hard straight at the camera, then settles back into her starting pose holding the broom.' +
       IN_FRAME,
   },
   sweep: {
-    tail: true,
+    tail: false,
+    pingpong: true, // played forwards then backwards so the loop has no seam
     prompt:
-      'The grandmother sweeps the floor in front of her with the straw broom in brisk short strokes, a little hunched, ' +
-      'staying on the same spot, steady rhythmic motion.' + IN_FRAME,
+      'The grandmother sweeps the floor energetically with the straw broom, big wide brisk strokes swishing ' +
+      'left and right across the floor in front of her, her body and shoulders moving with each stroke, hunched over, ' +
+      'determined, staying on the same spot.' + IN_FRAME,
   },
   happy: {
-    tail: true,
+    tail: false,
     prompt:
-      'The grandmother looks around, satisfied, smiles warmly, nods with approval and gives a thumbs up, ' +
-      'then settles back into her starting pose holding the broom.' + IN_FRAME,
+      'The grandmother looks around, satisfied, breaks into a big warm smile, nods firmly with approval and raises ' +
+      'her free hand high next to her face in a clear, big thumbs up, holding it proudly.' + IN_FRAME,
   },
   leave: {
     tail: false,
@@ -193,6 +198,40 @@ async function makeSlipper() {
   console.log(`  -> ${path.relative(ROOT, out)}`);
 }
 
+// Union of Nonna's bounding box over every frame of every clip, so all clips
+// share one crop and she is the same size in each.
+function unionCrop(states) {
+  let box = null;
+  for (const state of states) {
+    const until = CLIPS[state].cropUntil ? ['-t', String(CLIPS[state].cropUntil)] : [];
+    // cropdetect reports on stderr.
+    const log = spawnSync('ffmpeg', [...until, '-i', path.join(WORK, `${state}-mask.mp4`), '-vf',
+      'cropdetect=limit=0.1:round=2:reset=0', '-f', 'null', '-'], { encoding: 'utf8' }).stderr;
+    const all = [...log.matchAll(/crop=(\d+):(\d+):(\d+):(\d+)/g)];
+    const [w, h, x, y] = all.at(-1).slice(1).map(Number);
+    const b = { x0: x, y0: y, x1: x + w, y1: y + h };
+    box = box ? { x0: Math.min(box.x0, b.x0), y0: Math.min(box.y0, b.y0), x1: Math.max(box.x1, b.x1), y1: Math.max(box.y1, b.y1) } : b;
+  }
+  const pad = 12;
+  const x = Math.max(0, box.x0 - pad) & ~1;
+  const y = Math.max(0, box.y0 - pad) & ~1;
+  return { x, y, w: (box.x1 + pad - x) & ~1, h: (box.y1 + pad - y) & ~1 };
+}
+
+// Uses the mask as alpha, crops, and encodes VP9 with alpha, which
+// Chromium/Electron plays transparently on macOS and Windows.
+function encode(state, crop) {
+  const raw = path.join(WORK, `${state}.mp4`);
+  const mask = path.join(WORK, `${state}-mask.mp4`);
+  const out = path.join(OUT, `${state}.webm`);
+  const c = `crop=${crop.w}:${crop.h}:${crop.x}:${crop.y}`;
+  const pingpong = CLIPS[state].pingpong ? ',split[f][r];[r]reverse[b];[f][b]concat=n=2:v=1' : '';
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', raw, '-i', mask, '-filter_complex',
+    `[1:v]format=gray[a];[0:v][a]alphamerge,${c},scale=-2:900,format=yuva420p${pingpong}`,
+    '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '30', '-auto-alt-ref', '0', '-an', out], { stdio: 'inherit' });
+  console.log(`  -> ${path.relative(ROOT, out)}`);
+}
+
 const videoUrl = (r) => r.video?.url || r.output?.url || r.url;
 
 async function makeClip(state, imageUrl) {
@@ -219,13 +258,6 @@ async function makeClip(state, imageUrl) {
     });
     await download(m.mask_video.url, mask);
   }
-  // Use the mask as alpha and encode VP9 with alpha, which Chromium/Electron
-  // plays transparently on macOS and Windows.
-  const out = path.join(OUT, `${state}.webm`);
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', raw, '-i', mask, '-filter_complex',
-    '[1:v]format=gray,scale=iw:ih[a];[0:v][a]alphamerge,scale=-2:960,format=yuva420p',
-    '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '32', '-auto-alt-ref', '0', '-an', out], { stdio: 'inherit' });
-  console.log(`  -> ${path.relative(ROOT, out)}`);
 }
 
 try {
@@ -234,8 +266,14 @@ try {
   } else if (args.includes('--slipper')) {
     await makeSlipper();
   } else {
-    const { url } = await referenceImage();
-    for (const state of only) await makeClip(state, url);
+    if (!args.includes('--encode-only')) {
+      const { url } = await referenceImage();
+      for (const state of only) await makeClip(state, url);
+    }
+    if (args.includes('--no-encode')) process.exit(0);
+    const crop = unionCrop(Object.keys(CLIPS));
+    console.log('Crop', crop);
+    for (const state of Object.keys(CLIPS)) encode(state, crop);
   }
 } finally {
   console.log(`FAL spend so far: $${spend.total.toFixed(2)} of $${BUDGET}`);
