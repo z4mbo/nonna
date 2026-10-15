@@ -71,11 +71,11 @@ app.whenReady().then(async () => {
 
   let i = 0;
   ipcMain.on('nonna:sweep', () => {
-    if (i >= FILES.length) return win.webContents.send('nonna:swept', { done: true });
-    const [name, category] = FILES[i];
+    if (i >= FILES.length) return win.webContents.send('nonna:swept', { swept: 0, categories: [], done: true });
+    const [, category] = FILES[i];
     win.webContents.executeJavaScript(`window.__sweepIcon(${i}); true`);
     i++;
-    win.webContents.send('nonna:swept', { name, category, done: i >= FILES.length });
+    win.webContents.send('nonna:swept', { swept: 1, categories: [category], done: i >= FILES.length });
   });
   ipcMain.on('nonna:hover', () => {});
   const finished = new Promise((r) => ipcMain.once('nonna:finished', r));

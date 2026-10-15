@@ -12,7 +12,7 @@ const WATCH_INTERVAL_MS = 60_000;
 const AUTO_VISIT_COOLDOWN_MS = 60 * 60_000;
 
 const settingsFile = path.join(app.getPath('userData'), 'settings.json');
-const moveLog = new organizer.MoveLog(path.join(app.getPath('userData'), 'moves.json'));
+const moveLog = new organizer.MoveLog(path.join(app.getPath('userData'), 'moves'));
 
 let settings = { autoVisit: true, clutterThreshold: 15, confirmedFirstTidy: false };
 let overlay = null;
@@ -86,33 +86,44 @@ async function callNonna({ auto = false } = {}) {
   }
 }
 
-// The renderer drives the timing: it asks for each item to be swept so the
-// files disappear in step with the broom.
+// The renderer drives the timing: it asks for a batch of items at a time,
+// and each batch moves as many as fit in BATCH_MS so the files disappear in
+// step with the broom and the app stays responsive, however big the mess.
+const BATCH_MS = 100;
+
 function runShow(steps) {
   return new Promise((resolve) => {
-    const entries = [];
+    const log = DRY_RUN ? null : moveLog.start();
+    let moved = 0;
     let i = 0;
 
-    const onSweep = (e) => {
+    const onSweep = (e, max = 1) => {
       if (e.sender !== overlay.webContents) return;
-      if (i >= steps.length) return overlay.webContents.send('nonna:swept', { done: true });
-      const step = steps[i++];
-      if (!DRY_RUN) {
+      const t0 = Date.now();
+      const categories = [];
+      let n = 0;
+      while (i < steps.length && n < max && (n === 0 || Date.now() - t0 < BATCH_MS)) {
+        const step = steps[i++];
+        n++;
+        if (categories.length < 3) categories.push(step.category);
+        if (DRY_RUN) continue;
         try {
-          entries.push(organizer.moveOne(step));
+          log.append(organizer.moveOne(step));
+          moved++;
         } catch (err) {
           console.error('move failed', step.from, err);
         }
       }
-      if (i >= steps.length && entries.length) arrangeDesktop();
-      overlay.webContents.send('nonna:swept', { name: step.name, category: step.category, done: i >= steps.length });
+      const done = i >= steps.length;
+      if (done && n && moved) arrangeDesktop();
+      overlay.webContents.send('nonna:swept', { swept: n, categories, remaining: steps.length - i, done });
     };
 
     const onFinished = (e) => {
       if (e.sender !== overlay.webContents) return;
       ipcMain.removeListener('nonna:sweep', onSweep);
       ipcMain.removeListener('nonna:finished', onFinished);
-      moveLog.addSession(entries);
+      log?.close();
       overlay.hide();
       overlay.setIgnoreMouseEvents(true, { forward: true });
       refreshMenus();
@@ -123,10 +134,7 @@ function runShow(steps) {
     ipcMain.on('nonna:finished', onFinished);
     overlay.setBounds(screen.getPrimaryDisplay().workArea);
     overlay.showInactive();
-    overlay.webContents.send('nonna:start', {
-      count: steps.length,
-      items: steps.map((s) => ({ name: s.name, category: s.category })),
-    });
+    overlay.webContents.send('nonna:start', { count: steps.length });
   });
 }
 
@@ -140,21 +148,22 @@ function arrangeDesktop() {
 }
 
 function undoLast() {
-  const session = moveLog.popSession();
+  const session = moveLog.last();
   if (!session) {
     dialog.showMessageBox({ message: 'Nothing to undo. Nonna has not touched anything yet.' });
     return;
   }
-  const { restored, skipped } = organizer.undo(session.entries);
+  const { restored, skipped } = organizer.undo(session.entries());
+  session.drop();
   dialog.showMessageBox({
-    message: `Put back ${restored.length} item${restored.length === 1 ? '' : 's'}.`,
-    detail: skipped.length ? `${skipped.length} could not be restored because they were moved or replaced since.` : undefined,
+    message: `Put back ${restored.toLocaleString()} item${restored === 1 ? '' : 's'}.`,
+    detail: skipped ? `${skipped.toLocaleString()} could not be restored because they were moved or replaced since.` : undefined,
   });
   refreshMenus();
 }
 
 function buildMenu() {
-  const hasUndo = moveLog.read().sessions.length > 0;
+  const hasUndo = moveLog.count() > 0;
   return Menu.buildFromTemplate([
     { label: 'Call Nonna', click: () => callNonna() },
     { label: 'Undo last tidy-up', enabled: hasUndo, click: undoLast },
