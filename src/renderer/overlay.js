@@ -16,6 +16,7 @@ const LINES = {
   leave: ['Ciao bello! Mangia qualcosa!', 'Ciao ciao! Copriti!'],
 };
 
+const THROW_AT = 4.55;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 const available = {};
@@ -55,6 +56,13 @@ function pose(state, { loop = false, fallbackMs = 1500 } = {}) {
   clip.play();
   if (loop) return Promise.resolve();
   return new Promise((r) => (clip.onended = r));
+}
+
+function atClipTime(t) {
+  return new Promise((resolve) => {
+    const check = () => (clip.currentTime >= t || clip.ended ? resolve() : requestAnimationFrame(check));
+    check();
+  });
 }
 
 function moveTo(leftPx, ms = 1600) {
@@ -145,12 +153,15 @@ async function visit({ count }) {
     say(pick(LINES.clean));
     await sleep(2400);
   } else {
-    pose('angry');
-    await moveTo(W - h * 1.1, 1200);
+    const angry = pose('angry', { fallbackMs: 1400 });
+    await moveTo(W - h * 1.1, 500);
     say(pick(LINES.angry), 2600);
-    await sleep(500);
+    // In the generated clip the ciabatta leaves her hand at ~4.6 s.
+    if (available.angry) await atClipTime(THROW_AT);
+    else await sleep(500);
     await throwCiabatta();
-    await sleep(900);
+    await angry;
+    await sleep(300);
 
     pose('sweep', { loop: true });
     say(pick(LINES.sweep), 2400);
@@ -172,10 +183,18 @@ async function visit({ count }) {
     await sleep(available.happy ? 600 : 1200);
   }
 
-  say(pick(LINES.leave), 2000);
-  pose('leave', { loop: true });
+  say(pick(LINES.leave), 2400);
   nonnaEl.classList.add('flip');
-  await moveTo(W + 40, 2200);
+  if (available.leave) {
+    // The clip waves first, then walks off to the right.
+    const leaving = pose('leave');
+    await atClipTime(2.6);
+    await moveTo(W + 40, 2400);
+    await leaving;
+  } else {
+    pose('leave', { loop: true });
+    await moveTo(W + 40, 2200);
+  }
   clip.pause();
   window.nonna.finished();
 }
