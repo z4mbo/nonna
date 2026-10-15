@@ -49,7 +49,9 @@ function createOverlay() {
     webPreferences: { preload: path.join(__dirname, 'preload.js') },
   });
   overlay.setAlwaysOnTop(true, 'screen-saver');
-  overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // skipTransformProcessType keeps Nonna in the Dock; without it macOS turns
+  // the app into a menu-bar-only accessory.
+  overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
   // Clicks fall through to the desktop except where the renderer says Nonna is.
   overlay.setIgnoreMouseEvents(true, { forward: true });
   overlay.loadFile(path.join(__dirname, '..', 'renderer', 'overlay.html'));
