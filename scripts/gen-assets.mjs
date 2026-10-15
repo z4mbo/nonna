@@ -5,7 +5,8 @@
 //   3. background removal on each clip (video matting)
 //   4. ffmpeg -> VP9 WebM with alpha in assets/nonna/<state>.webm
 //
-// Usage: node scripts/gen-assets.mjs [--only angry,sweep] [--image path.png] [--images 2]
+// Usage: node scripts/gen-assets.mjs [--image-only | --slipper | --only angry,sweep] [--image path.png]
+// Put refs/volto.jpg (face) and optionally refs/corpo.jpg (body) to base Nonna on real photos.
 // FAL_KEY comes from the environment or .env. Every paid call is recorded in
 // assets/.work/spend.json and the script refuses to go past NONNA_BUDGET_USD.
 import { execFileSync } from 'node:child_process';
@@ -28,11 +29,21 @@ if (!KEY) {
 }
 
 const IMAGE_MODEL = 'fal-ai/flux-pro/v1.1-ultra';
+const EDIT_MODEL = 'fal-ai/nano-banana/edit';
+const SLIPPER_MODEL = 'fal-ai/flux/schnell';
+const CUTOUT_MODEL = 'fal-ai/birefnet/v2';
 const VIDEO_MODEL = 'fal-ai/kling-video/v2.5-turbo/pro/image-to-video';
 const MATTE_MODEL = 'fal-ai/birefnet/v2/video';
 // Worst-case USD per call, from FAL's pricing API (Oct 2026). Matting bills
 // per compute second; 0.10 is a generous ceiling for a 5 s clip.
-const COST = { [IMAGE_MODEL]: 0.06, [VIDEO_MODEL]: 0.35, [MATTE_MODEL]: 0.1 };
+const COST = {
+  'fal-ai/flux-pro/v1.1-ultra': 0.06,
+  'fal-ai/nano-banana/edit': 0.04,
+  'fal-ai/flux/schnell': 0.01,
+  'fal-ai/birefnet/v2': 0.02,
+  'fal-ai/kling-video/v2.5-turbo/pro/image-to-video': 0.35,
+  'fal-ai/birefnet/v2/video': 0.1,
+};
 const BUDGET = Number(process.env.NONNA_BUDGET_USD || 5);
 
 const OUT = path.join(ROOT, 'assets', 'nonna');
@@ -40,26 +51,54 @@ const WORK = path.join(ROOT, 'assets', '.work');
 fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(WORK, { recursive: true });
 
-const NONNA =
-  'a real photograph of a short, plump 80 year old Italian grandmother, full body head to toe, ' +
-  'grey hair in a bun, black cardigan over a floral house dress, apron, thick stockings, house slippers, ' +
-  'holding an old worn straw broom, standing on a plain flat light grey studio background, ' +
-  'soft even lighting, sharp focus, photorealistic, 9:16';
+const LOOK =
+  'a short, plump, slightly hunched 80 year old Italian grandmother (nonna) with small round reading glasses, ' +
+  'grey hair in a bun, black cardigan over a floral house dress, a faded kitchen apron, thick dark stockings and ' +
+  'beige felt house slippers, holding an old worn straw broom';
+const FRAMING =
+  'Full body photo, she stands small in the centre of the frame with generous empty space above her head, ' +
+  'below her feet and on both sides. Plain flat light grey studio background, soft even lighting, sharp focus, photorealistic.';
+const NONNA = `A real photograph of ${LOOK}. ${FRAMING}`;
+const NONNA_FROM_REFS =
+  `Create a real photograph of ${LOOK}. Her face must be the face of the woman in the first image. ` +
+  `${FRAMING}`;
 
+const IN_FRAME =
+  ' Static wide camera. Her whole body, from her hair to her slippers, stays fully inside the frame the whole time. ' +
+  'Plain grey background stays still. Realistic human motion.';
+// `tail` clips end on the reference pose, so loops and cuts between clips are seamless.
 const CLIPS = {
-  angry:
-    'The grandmother is furious, shouts and shakes her fist, then grabs a ciabatta bread loaf from her apron ' +
-    'and throws it hard straight at the camera. Static camera, plain background stays still.',
-  sweep:
-    'The grandmother sweeps the floor energetically with her old broom, muttering, side to side, in place. ' +
-    'Seamless loop. Static camera, plain background stays still.',
-  happy:
-    'The grandmother looks around, smiles warmly, nods with approval and gives a thumbs up, very pleased. ' +
-    'Static camera, plain background stays still.',
-  leave:
-    'The grandmother turns to her side and walks away to the side carrying her broom on her shoulder, waving goodbye. ' +
-    'Static camera, plain background stays still.',
+  angry: {
+    tail: true,
+    prompt:
+      'The grandmother glares at the viewer, furious, shakes her fist and scolds, then quickly pulls one house slipper ' +
+      'off her foot and hurls it hard straight at the camera, then settles back into her starting pose holding the broom.' +
+      IN_FRAME,
+  },
+  sweep: {
+    tail: true,
+    prompt:
+      'The grandmother sweeps the floor in front of her with the straw broom in brisk short strokes, a little hunched, ' +
+      'staying on the same spot, steady rhythmic motion.' + IN_FRAME,
+  },
+  happy: {
+    tail: true,
+    prompt:
+      'The grandmother looks around, satisfied, smiles warmly, nods with approval and gives a thumbs up, ' +
+      'then settles back into her starting pose holding the broom.' + IN_FRAME,
+  },
+  leave: {
+    tail: false,
+    prompt:
+      'The grandmother gives a small wave goodbye, puts the broom on her shoulder, turns towards the right of the frame ' +
+      'and walks slowly to the right; the camera tracks sideways with her so she stays in the centre of the frame.' +
+      ' Her whole body, from her hair to her slippers, stays fully inside the frame the whole time. Plain grey background.',
+  },
 };
+
+const SLIPPER =
+  'Product photo of a single worn beige felt women\'s house slipper, closed toe, seen from above at a slight angle, ' +
+  'isolated on a plain white background, soft light, photorealistic';
 
 const args = process.argv.slice(2);
 const only = args.includes('--only') ? args[args.indexOf('--only') + 1].split(',') : Object.keys(CLIPS);
@@ -106,18 +145,48 @@ async function uploadDataUri(file) {
   return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
 }
 
+function findRef(name) {
+  const dir = path.join(ROOT, 'refs');
+  if (!fs.existsSync(dir)) return null;
+  const f = fs.readdirSync(dir).find((n) => n.toLowerCase().startsWith(name) && /\.(jpe?g|png|webp)$/i.test(n));
+  return f ? path.join(dir, f) : null;
+}
+
 async function referenceImage() {
   if (givenImage) return { file: givenImage, url: await uploadDataUri(givenImage) };
   const cached = path.join(WORK, 'nonna.png');
   if (fs.existsSync(cached) && fs.existsSync(cached + '.url')) {
     return { file: cached, url: fs.readFileSync(cached + '.url', 'utf8').trim() };
   }
-  console.log('Generating Nonna…');
-  const r = await fal(IMAGE_MODEL, { prompt: NONNA, aspect_ratio: '9:16', output_format: 'png', num_images: 1, raw: true });
+  const face = findRef('volto') || findRef('face');
+  const body = findRef('corpo') || findRef('body');
+  let r;
+  if (face) {
+    console.log(`Generating Nonna from ${[face, body].filter(Boolean).map((f) => path.basename(f)).join(' + ')}…`);
+    const image_urls = [await uploadDataUri(face)];
+    let prompt = NONNA_FROM_REFS;
+    if (body) {
+      image_urls.push(await uploadDataUri(body));
+      prompt += ' Her body shape and posture are like the woman in the second image.';
+    }
+    r = await fal(EDIT_MODEL, { prompt, image_urls, aspect_ratio: '9:16', output_format: 'png', num_images: 1 });
+  } else {
+    console.log('Generating Nonna…');
+    r = await fal(IMAGE_MODEL, { prompt: NONNA, aspect_ratio: '9:16', output_format: 'png', num_images: 1, raw: true });
+  }
   const url = r.images[0].url;
   await download(url, cached);
   fs.writeFileSync(cached + '.url', url);
   return { file: cached, url };
+}
+
+async function makeSlipper() {
+  const out = path.join(ROOT, 'assets', 'slipper.png');
+  console.log('Slipper');
+  const img = await fal(SLIPPER_MODEL, { prompt: SLIPPER, image_size: 'square_hd', num_images: 1 });
+  const cut = await fal(CUTOUT_MODEL, { image_url: img.images[0].url, model: 'General Use (Heavy)', output_format: 'png' });
+  await download(cut.image.url, out);
+  console.log(`  -> ${path.relative(ROOT, out)}`);
 }
 
 const videoUrl = (r) => r.video?.url || r.output?.url || r.url;
@@ -129,7 +198,8 @@ async function makeClip(state, imageUrl) {
   // The matting model needs the hosted URL of the raw clip, so remember it.
   const urlFile = raw + '.url';
   if (!fs.existsSync(raw) || !fs.existsSync(urlFile)) {
-    const r = await fal(VIDEO_MODEL, { prompt: CLIPS[state], image_url: imageUrl, duration: '5' });
+    const { prompt, tail } = CLIPS[state];
+    const r = await fal(VIDEO_MODEL, { prompt, image_url: imageUrl, ...(tail && { tail_image_url: imageUrl }), duration: '5' });
     fs.writeFileSync(urlFile, videoUrl(r));
     await download(videoUrl(r), raw);
   }
@@ -157,6 +227,8 @@ async function makeClip(state, imageUrl) {
 try {
   if (args.includes('--image-only')) {
     await referenceImage();
+  } else if (args.includes('--slipper')) {
+    await makeSlipper();
   } else {
     const { url } = await referenceImage();
     for (const state of only) await makeClip(state, url);

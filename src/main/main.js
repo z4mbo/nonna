@@ -31,7 +31,8 @@ function saveSettings() {
 }
 
 function createOverlay() {
-  const { bounds } = screen.getPrimaryDisplay();
+  // The work area excludes the Dock/taskbar, so Nonna's feet are never hidden.
+  const bounds = screen.getPrimaryDisplay().workArea;
   overlay = new BrowserWindow({
     ...bounds,
     transparent: true,
@@ -115,7 +116,7 @@ function runShow(steps) {
 
     ipcMain.on('nonna:sweep', onSweep);
     ipcMain.on('nonna:finished', onFinished);
-    overlay.setBounds(screen.getPrimaryDisplay().bounds);
+    overlay.setBounds(screen.getPrimaryDisplay().workArea);
     overlay.showInactive();
     overlay.webContents.send('nonna:start', {
       count: steps.length,
