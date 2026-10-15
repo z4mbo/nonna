@@ -12,9 +12,13 @@ const THROW_AT = 2.6; // slipper leaves her hand in angry.webm
 const WALK_AT = 2.2; // she starts walking in leave.webm
 const MARGIN = 24;
 const SWEEP_SPEED = 140; // px per second while pacing
+// A big mess is swept in SWEEP_STEPS batches, so the show lasts a few
+// seconds whether there are 20 files or 20 million; the disk sets the rest.
+const SWEEP_STEPS = 60;
+const BATCH_GAP_MS = 90;
 
 const ICONS = {
-  Images: '🖼️', Screenshots: '📸', Documents: '📄', Spreadsheets: '📊', Presentations: '📽️',
+  Images: '🖼️', Screenshots: '📸', 'Screen Recordings': '📹', Documents: '📄', Spreadsheets: '📊', Presentations: '📽️',
   Videos: '🎞️', Audio: '🎵', Archives: '🗜️', Installers: '💿', Code: '📜', Apps: '📦',
   Folders: '📁', Other: '📄',
 };
@@ -190,18 +194,21 @@ function sweepMote(category) {
   ).finished.then(() => el.remove());
 }
 
-// Main process answers each sweep request with the item it just moved.
+// Main process answers each sweep request with the batch it just moved.
 let onSwept = () => {};
 window.nonna.onSwept((res) => onSwept(res));
 
 function sweepAll(count) {
+  // Up to SWEEP_STEPS files: one at a time, as before. More: batches.
+  const perBatch = Math.max(1, Math.ceil(count / SWEEP_STEPS));
+  const gap = perBatch === 1 ? Math.max(110, 1500 / Math.sqrt(count)) : BATCH_GAP_MS;
   return new Promise((resolve) => {
     onSwept = (res) => {
-      if (res.name) sweepMote(res.category);
+      res.categories?.forEach((c, k) => setTimeout(() => sweepMote(c), k * 30));
       if (res.done) return resolve();
-      setTimeout(() => window.nonna.sweep(), Math.max(110, 1500 / Math.sqrt(count)));
+      setTimeout(() => window.nonna.sweep(perBatch), gap);
     };
-    window.nonna.sweep();
+    window.nonna.sweep(perBatch);
   });
 }
 
