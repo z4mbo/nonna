@@ -1,8 +1,8 @@
 {
   "name": "nonna",
   "productName": "Nonna",
-  "version": "0.1.0",
-  "description": "An Italian nonna who storms onto your desktop, throws a ciabatta at you, and tidies everything into folders.",
+  "version": "0.2.0",
+  "description": "An Italian nonna who storms onto your desktop, throws her slipper (ciabatta) at you, and tidies everything into folders.",
   "main": "src/main/main.js",
   "author": "Alessandro Zambon",
   "license": "MIT",
@@ -26,6 +26,7 @@
       "src/**/*",
       "assets/nonna/**/*",
       "assets/slipper.png",
+      "assets/sounds/*.mp3",
       "assets/icon.png",
       "assets/tray.png",
       "package.json"
@@ -48,7 +49,10 @@
           ]
         }
       ],
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.png",
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "Nonna asks Finder where your desktop icons are and hides open windows so she can sweep the desktop."
+      }
     },
     "win": {
       "target": [

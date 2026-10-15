@@ -42,6 +42,7 @@ const COST = {
   'fal-ai/flux/schnell': 0.01,
   'fal-ai/birefnet/v2': 0.02,
   'fal-ai/kling-video/v2.5-turbo/pro/image-to-video': 0.35,
+  'fal-ai/elevenlabs/sound-effects/v2': 0.01,
   'fal-ai/birefnet/v2/video': 0.05, // ~$0.03 actual per 5 s clip on FAL's dashboard
 };
 const BUDGET = Number(process.env.NONNA_BUDGET_USD || 5);
@@ -101,6 +102,13 @@ const CLIPS = {
       ' Her whole body, from her hair to her slippers, stays fully inside the frame the whole time. Plain grey background.',
   },
 };
+
+// Nonna's angry voice (generated, so no third-party licence to track).
+const SHOUTS = [
+  'Elderly Italian grandmother shouting angrily, furious raspy old woman voice scolding loudly, "Mamma mia!", close mic, no music',
+  'Very old woman yelling in anger at a mess, shrill cracking elderly female voice, Italian exclamations, scolding, dry room, no music',
+  'Angry old Italian nonna screaming "Ma che fai?!" and grumbling, elderly woman voice, close mic, no music',
+];
 
 const SLIPPER =
   'Product photo of a single worn beige felt women\'s house slipper, closed toe, seen from above at a slight angle, ' +
@@ -187,6 +195,17 @@ async function referenceImage() {
   await download(url, cached);
   fs.writeFileSync(cached + '.url', url);
   return { file: cached, url };
+}
+
+async function makeVoice() {
+  const dir = path.join(ROOT, 'assets', 'sounds');
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [i, text] of SHOUTS.entries()) {
+    const r = await fal('fal-ai/elevenlabs/sound-effects/v2', { text, duration_seconds: 3.5, prompt_influence: 0.6, output_format: 'mp3_44100_128' });
+    const url = r.audio?.url || r.audio_file?.url || r.url;
+    await download(url, path.join(dir, `shout-raw-${i + 1}.mp3`));
+    console.log(`  -> assets/sounds/shout-raw-${i + 1}.mp3`);
+  }
 }
 
 async function makeSlipper() {
@@ -277,6 +296,8 @@ async function makeClip(state, imageUrl) {
 try {
   if (args.includes('--image-only')) {
     await referenceImage();
+  } else if (args.includes('--voice')) {
+    await makeVoice();
   } else if (args.includes('--slipper')) {
     await makeSlipper();
   } else {

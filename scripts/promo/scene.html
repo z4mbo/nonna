@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,800;1,9..144,700&family=Inter:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #fbf4e8; }
+  body { font-family: Inter, sans-serif; color: #2a1a10; }
+  .cloth { position: absolute; left: 0; right: 0; height: 34px;
+    background: repeating-linear-gradient(90deg, #d4482b 0 52px, transparent 52px 104px),
+                repeating-linear-gradient(0deg, rgba(212,72,43,.35) 0 17px, transparent 17px 34px); }
+  .cloth.top { top: 0; } .cloth.bottom { bottom: 0; }
+  .scene { position: absolute; inset: 0; opacity: 0; }
+  h1 { position: absolute; left: 140px; margin: 0; font: 800 132px/1.0 Fraunces, Georgia, serif; letter-spacing: -2px; }
+  h1 em { color: #d4482b; font-style: italic; }
+  .sub { position: absolute; left: 146px; font: 700 64px/1.1 Fraunces, Georgia, serif; font-style: italic; color: #d4482b; }
+  video { position: absolute; height: 860px; bottom: 34px; }
+  #slipper { position: absolute; left: 0; top: 0; height: 420px; opacity: 0; filter: drop-shadow(0 40px 50px rgba(0,0,0,.35)); }
+  .word { display: inline-block; opacity: 0; }
+  .pill { display: inline-block; padding: 18px 34px; border-radius: 999px; background: #2a1a10; color: #fffaf1; font: 700 46px Inter, sans-serif; }
+  .pill.red { background: #d4482b; }
+  .meta { position: absolute; left: 146px; font: 600 40px Inter, sans-serif; color: #6b5545; }
+  .burst { position: absolute; border-radius: 50%; border: 8px solid #d4482b; opacity: 0; }
+</style>
+</head>
+<body>
+  <div class="cloth top"></div><div class="cloth bottom"></div>
+
+  <!-- Intro -->
+  <div class="scene" id="intro">
+    <h1 id="t1" style="top: 300px"><span class="word">Don't</span> <span class="word">make</span> <span class="word">the</span><br><span class="word"><em>Nonna</em></span> <span class="word">mad.</span></h1>
+    <div class="sub" id="t2" style="top: 600px; opacity: 0">Keep your desktop clean.</div>
+    <video id="vAngry" src="../../assets/nonna/angry.webm" muted playsinline style="right: 120px"></video>
+    <div class="burst" id="burst"></div>
+  </div>
+
+  <!-- Outro -->
+  <div class="scene" id="outro">
+    <h1 style="top: 230px">Nonna</h1>
+    <div class="sub" style="top: 380px">She cleans your desktop. You behave.</div>
+    <div class="meta" style="top: 520px"><span class="pill red">nonna.imbored.fun</span></div>
+    <div class="meta" style="top: 640px">Free for macOS &amp; Windows · open source</div>
+    <div class="meta" style="top: 720px">github.com/z4mbo/nonna</div>
+    <video id="vHappy" src="../../assets/nonna/happy.webm" muted playsinline style="right: 160px"></video>
+  </div>
+
+  <img id="slipper" src="../../assets/slipper.png">
+  <script src="../../src/renderer/sfx.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const pop = (el, delay = 0) =>
+      el.animate(
+        [{ opacity: 0, transform: 'translateY(40px) scale(.85)' }, { opacity: 1, transform: 'translateY(-6px) scale(1.04)', offset: .7 }, { opacity: 1, transform: 'none' }],
+        { duration: 420, delay, easing: 'cubic-bezier(.2,.9,.3,1.2)', fill: 'forwards' },
+      );
+
+    async function intro() {
+      $('intro').style.opacity = 1;
+      const v = $('vAngry');
+      v.play();
+      Sfx.shout(['../../assets/sounds/shout-1.mp3']);
+      [...document.querySelectorAll('#t1 .word')].forEach((w, i) => { pop(w, 150 + i * 160); setTimeout(() => Sfx.step(), 150 + i * 160); });
+      // Slipper flies at the camera when she throws it in the clip.
+      await new Promise((r) => { const c = () => (v.currentTime >= 2.6 ? r() : requestAnimationFrame(c)); c(); });
+      const s = $('slipper');
+      const r = v.getBoundingClientRect();
+      s.style.opacity = 1;
+      Sfx.whoosh(560);
+      await s.animate(
+        [{ transform: `translate(${r.left + r.width * .45}px, ${r.top + r.height * .55}px) rotate(-30deg) scale(.15)` },
+         { transform: 'translate(700px, 200px) rotate(250deg) scale(1.6)', offset: .6 },
+         { transform: 'translate(820px, 330px) rotate(358deg) scale(5)' }],
+        { duration: 560, easing: 'cubic-bezier(.35,.05,.7,1)', fill: 'forwards' },
+      ).finished;
+      Sfx.thwack();
+      document.body.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-22px,14px)' }, { transform: 'translate(18px,-10px)' }, { transform: 'translate(0,0)' }], { duration: 380 });
+      await sleep(250);
+      await s.animate([{ transform: 'translate(820px, 330px) rotate(358deg) scale(5)' }, { transform: 'translate(820px, 1800px) rotate(380deg) scale(4)' }], { duration: 700, easing: 'ease-in', fill: 'forwards' }).finished;
+      Sfx.huff();
+      $('t2').animate([{ opacity: 0, transform: 'translateX(-40px)' }, { opacity: 1, transform: 'none' }], { duration: 450, easing: 'ease-out', fill: 'forwards' });
+      await sleep(1600);
+      await $('intro').animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' }).finished;
+    }
+
+    async function outro() {
+      const sc = $('outro');
+      sc.style.opacity = 1;
+      [...sc.querySelectorAll('h1, .sub, .meta')].forEach((el, i) => pop(el, i * 200));
+      const v = $('vHappy');
+      v.play();
+      setTimeout(() => Sfx.approve(), 900);
+      await sleep(4600);
+    }
+
+    window.runScene = async (name) => {
+      const t0 = Sfx.startRecording();
+      await (name === 'intro' ? intro() : outro());
+      await sleep(300);
+      return { t0, audio: Array.from(await Sfx.stopRecording()) };
+    };
+  </script>
+</body>
+</html>

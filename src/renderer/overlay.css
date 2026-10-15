@@ -10,17 +10,31 @@ html, body {
 
 #stage { position: fixed; inset: 0; pointer-events: none; }
 
-/* Nonna's box always sits fully on screen: bottom edge on the work area's
-   bottom (above the Dock/taskbar), whole body inside the viewport. */
+/* Positioned with a translate from the top-left; the renderer keeps the whole
+   box inside the screen while she works. */
 #nonna {
   position: absolute;
-  bottom: 0;
+  top: 0;
   left: 0;
-  height: min(52vh, 620px);
+  height: min(46vh, 560px);
   aspect-ratio: 578 / 900;
   pointer-events: auto;
   opacity: 0;
   will-change: transform, opacity;
+}
+
+#body { position: absolute; inset: 0; transform-origin: 50% 100%; }
+#nonna.flip #body { transform: scaleX(-1); }
+
+#shadow {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: -1.5%;
+  height: 5%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0));
+  filter: blur(2px);
 }
 
 .clip {
@@ -31,13 +45,13 @@ html, body {
   object-fit: contain;
   object-position: bottom;
   opacity: 0;
-  transition: opacity 220ms linear;
+  transition: opacity 180ms linear;
 }
 .clip.on { opacity: 1; }
 
 #fallback { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; }
-#fallback .granny { font-size: 22vh; line-height: 1; }
-#fallback .broom { font-size: 14vh; margin-left: -6vh; transform-origin: top center; }
+#fallback .granny { font-size: 20vh; line-height: 1; }
+#fallback .broom { font-size: 13vh; margin-left: -6vh; transform-origin: top center; }
 #nonna.sweep #fallback .broom { animation: sweep 0.5s ease-in-out infinite alternate; }
 #nonna.angry #fallback .granny { animation: shake 0.12s linear infinite; }
 #nonna.happy #fallback .granny { animation: hop 0.4s ease-in-out infinite alternate; }
@@ -50,26 +64,68 @@ html, body {
   opacity: 0;
   transform-origin: 50% 50%;
   will-change: transform, opacity;
-  filter: drop-shadow(0 30px 40px rgba(0, 0, 0, 0.45));
-}
-
-#splat {
-  position: absolute;
-  width: 110vmin;
-  height: 110vmin;
-  margin: -55vmin 0 0 -55vmin;
-  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><g stroke='white' stroke-width='1.6' fill='none' stroke-linecap='round' opacity='0.95'><path d='M100 100 L28 38 L12 30 M100 100 L170 30 L188 16 M100 100 L186 122 L198 126 M100 100 L140 190 L146 199 M100 100 L50 176 L40 196 M100 100 L8 112'/><path d='M62 66 L76 48 M140 54 L152 70 M160 114 L166 132 M124 160 L108 166 M70 150 L58 140 M40 106 L46 90 M84 84 L116 82 L122 112 L90 120 Z'/></g><circle cx='100' cy='100' r='10' fill='white' opacity='0.35'/></svg>") center / contain no-repeat;
-  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9));
-  animation: splat-fade 2.6s ease-out forwards;
+  filter: drop-shadow(0 40px 60px rgba(0, 0, 0, 0.5));
 }
 
 .mote {
   position: absolute;
-  font-size: 34px;
+  left: 0;
+  top: 0;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  object-fit: contain;
+  border-radius: 6px;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+}
+.mote.emoji { font-size: 48px; line-height: 64px; text-align: center; }
+
+.puff {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(214, 196, 168, 0.75), rgba(214, 196, 168, 0));
   will-change: transform, opacity;
 }
 
 @keyframes sweep { from { transform: rotate(-25deg); } to { transform: rotate(25deg); } }
 @keyframes shake { 0% { transform: translateX(-4px) rotate(-3deg); } 100% { transform: translateX(4px) rotate(3deg); } }
 @keyframes hop { from { transform: translateY(0); } to { transform: translateY(-3vh); } }
-@keyframes splat-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+
+/* Comic shouts, only while she's angry. */
+.shout {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 14px 22px 16px;
+  background: #fff;
+  color: #c81e1e;
+  border: 5px solid #111;
+  border-radius: 22px;
+  font: 900 italic 38px/1 "Impact", "Arial Black", "Helvetica Neue", sans-serif;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 7px 7px 0 #111;
+  transform-origin: 50% 100%;
+  will-change: transform, opacity;
+}
+.shout::after {
+  content: '';
+  position: absolute;
+  bottom: -26px;
+  left: var(--tail, 70%);
+  border: 13px solid transparent;
+  border-top: 16px solid #111;
+}
+.shout::before {
+  content: '';
+  position: absolute;
+  bottom: -15px;
+  left: calc(var(--tail, 70%) + 3px);
+  border: 10px solid transparent;
+  border-top: 12px solid #fff;
+  z-index: 1;
+}
