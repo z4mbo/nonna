@@ -205,7 +205,7 @@ function unionCrop(states) {
   for (const state of states) {
     const until = CLIPS[state].cropUntil ? ['-t', String(CLIPS[state].cropUntil)] : [];
     // cropdetect reports on stderr.
-    const log = spawnSync('ffmpeg', [...until, '-i', path.join(WORK, `${state}-mask.mp4`), '-vf',
+    const log = spawnSync('ffmpeg', [...until, '-i', fullMask(state), '-vf',
       'cropdetect=limit=0.1:round=2:reset=0', '-f', 'null', '-'], { encoding: 'utf8' }).stderr;
     const all = [...log.matchAll(/crop=(\d+):(\d+):(\d+):(\d+)/g)];
     const [w, h, x, y] = all.at(-1).slice(1).map(Number);
@@ -218,11 +218,25 @@ function unionCrop(states) {
   return { x, y, w: (box.x1 + pad - x) & ~1, h: (box.y1 + pad - y) & ~1 };
 }
 
+// The matting model drops the motion-blurred straw broom. The backdrop is
+// neutral grey and the broom is tan, so a chroma key (distance from grey in
+// YUV) recovers it; the final alpha is the brighter of the two masks.
+function fullMask(state) {
+  const out = path.join(WORK, `${state}-mask2.mp4`);
+  if (fs.existsSync(out)) return out;
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', path.join(WORK, `${state}.mp4`), '-i', path.join(WORK, `${state}-mask.mp4`),
+    '-filter_complex',
+    "[0:v]format=yuv444p,geq=lum='if(gt(abs(cb(X,Y)-128)+abs(cr(X,Y)-128),16),255,0)':cb=128:cr=128," +
+      'format=gray,erosion,erosion,dilation,dilation,dilation[k];[1:v]format=gray[m];[m][k]blend=all_mode=lighten,gblur=sigma=0.8',
+    '-c:v', 'libx264', '-crf', '12', '-pix_fmt', 'yuv420p', out], { stdio: 'inherit' });
+  return out;
+}
+
 // Uses the mask as alpha, crops, and encodes VP9 with alpha, which
 // Chromium/Electron plays transparently on macOS and Windows.
 function encode(state, crop) {
   const raw = path.join(WORK, `${state}.mp4`);
-  const mask = path.join(WORK, `${state}-mask.mp4`);
+  const mask = fullMask(state);
   const out = path.join(OUT, `${state}.webm`);
   const c = `crop=${crop.w}:${crop.h}:${crop.x}:${crop.y}`;
   const pingpong = CLIPS[state].pingpong ? ',split[f][r];[r]reverse[b];[f][b]concat=n=2:v=1' : '';

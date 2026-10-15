@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Tray, Menu, screen, ipcMain, dialog, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, ipcMain, dialog, nativeImage } = require('electron');
+const { execFile } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const organizer = require('./organizer');
@@ -61,7 +62,7 @@ async function confirmFirstTidy(count) {
     defaultId: 0,
     cancelId: 1,
     message: `Nonna wants to tidy ${count} item${count === 1 ? '' : 's'} on your desktop.`,
-    detail: `Everything goes into folders inside “${organizer.TIDY_DIR}” on your desktop. You can undo any tidy-up from the Nonna menu.`,
+    detail: 'Files go into folders on your desktop (Images, Documents, Screenshots…). Your own folders stay where they are. You can undo any tidy-up from the Nonna menu.',
   });
   if (response !== 0) return false;
   settings.confirmedFirstTidy = true;
@@ -100,6 +101,7 @@ function runShow(steps) {
           console.error('move failed', step.from, err);
         }
       }
+      if (i >= steps.length && entries.length) arrangeDesktop();
       overlay.webContents.send('nonna:swept', { name: step.name, category: step.category, done: i >= steps.length });
     };
 
@@ -125,6 +127,15 @@ function runShow(steps) {
   });
 }
 
+// macOS: ask Finder to line the desktop icons up in a neat grid, sorted by
+// kind, so the new folders sit together. Windows auto-arranges on its own.
+function arrangeDesktop() {
+  if (process.platform !== 'darwin' || process.env.NONNA_DESKTOP) return;
+  execFile('osascript', ['-e', 'tell application "Finder" to clean up window of desktop by kind'], (err) => {
+    if (err) console.error('arrange desktop failed', err.message);
+  });
+}
+
 function undoLast() {
   const session = moveLog.popSession();
   if (!session) {
@@ -144,7 +155,6 @@ function buildMenu() {
   return Menu.buildFromTemplate([
     { label: 'Call Nonna', click: () => callNonna() },
     { label: 'Undo last tidy-up', enabled: hasUndo, click: undoLast },
-    { label: `Open “${organizer.TIDY_DIR}”`, click: () => shell.openPath(path.join(DESKTOP, organizer.TIDY_DIR)) },
     { type: 'separator' },
     {
       label: 'Visit when the desktop gets messy',

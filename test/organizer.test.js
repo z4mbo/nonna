@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { categorize, plan, tidy, undo, clutterScore, MoveLog, TIDY_DIR } = require('../src/main/organizer');
+const { categorize, plan, tidy, undo, clutterScore, MoveLog } = require('../src/main/organizer');
 
 function messyDesktop() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nonna-'));
@@ -11,7 +11,7 @@ function messyDesktop() {
     fs.writeFileSync(path.join(dir, f), f);
   }
   fs.mkdirSync(path.join(dir, 'old project'));
-  fs.writeFileSync(path.join(dir, TIDY_DIR + '.txt'), 'not the tidy dir');
+  fs.mkdirSync(path.join(dir, 'Calculator.app'));
   return dir;
 }
 
@@ -20,38 +20,43 @@ test('categorize', () => {
   assert.equal(categorize('Screenshot 1.png', false), 'Screenshots');
   assert.equal(categorize('Schermata 2026.png', false), 'Screenshots');
   assert.equal(categorize('Foo.app', true), 'Apps');
-  assert.equal(categorize('dir', true), 'Folders');
+  assert.equal(categorize('dir', true), null);
   assert.equal(categorize('noext', false), 'Other');
 });
 
-test('tidy moves everything except hidden files, and undo restores it', () => {
+test('tidy files into category folders on the desktop, leave user folders, undo restores', () => {
   const dir = messyDesktop();
-  assert.equal(clutterScore(dir), 7);
+  assert.equal(clutterScore(dir), 6);
   const before = fs.readdirSync(dir).sort();
   const entries = tidy(dir);
-  assert.equal(entries.length, 7);
-  assert.deepEqual(fs.readdirSync(dir).sort(), ['.DS_Store', TIDY_DIR]);
-  assert.ok(fs.existsSync(path.join(dir, TIDY_DIR, 'Images', 'cat.jpg')));
-  assert.ok(fs.existsSync(path.join(dir, TIDY_DIR, 'Folders', 'old project')));
+  assert.equal(entries.length, 6);
+  assert.deepEqual(fs.readdirSync(dir).sort(), [
+    '.DS_Store', 'Apps', 'Audio', 'Documents', 'Images', 'Other', 'Screenshots', 'old project',
+  ]);
+  assert.ok(fs.existsSync(path.join(dir, 'Images', 'cat.jpg')));
+  assert.ok(fs.existsSync(path.join(dir, 'Apps', 'Calculator.app')));
+  // Category folders and the user's own folders don't count as clutter.
   assert.equal(clutterScore(dir), 0);
   assert.equal(plan(dir).length, 0);
 
   const { restored, skipped } = undo(entries);
-  assert.equal(restored.length, 7);
+  assert.equal(restored.length, 6);
   assert.equal(skipped.length, 0);
-  assert.deepEqual(fs.readdirSync(dir).filter((f) => f !== TIDY_DIR).sort(), before);
+  // Empty category folders Nonna created are removed again.
+  assert.deepEqual(fs.readdirSync(dir).sort(), before);
 });
 
-test('name collisions get a suffix, undo never overwrites', () => {
+test('existing category folders are reused and kept on undo', () => {
   const dir = messyDesktop();
-  fs.mkdirSync(path.join(dir, TIDY_DIR, 'Images'), { recursive: true });
-  fs.writeFileSync(path.join(dir, TIDY_DIR, 'Images', 'cat.jpg'), 'older cat');
+  fs.mkdirSync(path.join(dir, 'Images'));
+  fs.writeFileSync(path.join(dir, 'Images', 'cat.jpg'), 'older cat');
   const entries = tidy(dir);
-  assert.ok(entries.some((e) => e.to.endsWith('cat (2).jpg')));
+  assert.ok(entries.some((e) => e.to.endsWith(path.join('Images', 'cat (2).jpg'))));
   fs.writeFileSync(path.join(dir, 'tax.pdf'), 'new tax file');
   const { skipped } = undo(entries);
   assert.equal(skipped.length, 1);
   assert.equal(fs.readFileSync(path.join(dir, 'tax.pdf'), 'utf8'), 'new tax file');
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'Images')), ['cat.jpg']);
 });
 
 test('move log keeps sessions', () => {

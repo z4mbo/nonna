@@ -1,9 +1,8 @@
-// Sorts loose desktop items into category folders and keeps a move log so
-// every tidy-up can be undone.
+// Sorts loose desktop files into category folders that sit right on the
+// desktop (Images, Documents, …) and keeps a move log so every tidy-up can be
+// undone. The user's own folders are left where they are.
 const fs = require('node:fs');
 const path = require('node:path');
-
-const TIDY_DIR = 'Nonna Tidy';
 
 const CATEGORIES = {
   Images: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif', 'bmp', 'tiff', 'svg', 'raw', 'avif'],
@@ -17,18 +16,20 @@ const CATEGORIES = {
   Installers: ['dmg', 'pkg', 'exe', 'msi', 'appx', 'msix', 'iso'],
   Code: ['js', 'ts', 'py', 'json', 'html', 'css', 'sh', 'swift', 'java', 'c', 'cpp', 'go', 'rs', 'rb', 'yml', 'yaml'],
   Apps: ['app', 'lnk', 'url', 'webloc'],
-  Folders: [],
   Other: [],
 };
 
 const SCREENSHOT_RE = /^(screenshot|screen shot|schermata|istantanea|capture d’écran)/i;
 
-// Never touch these: system files, the tidy folder itself, Windows desktop.ini.
-const IGNORED = new Set(['.DS_Store', '.localized', 'desktop.ini', 'Thumbs.db', TIDY_DIR, '$RECYCLE.BIN']);
+const CATEGORY_NAMES = new Set(Object.keys(CATEGORIES));
 
+// Never touch these: system files, Windows desktop.ini, the recycle bin.
+const IGNORED = new Set(['.DS_Store', '.localized', 'desktop.ini', 'Thumbs.db', '$RECYCLE.BIN']);
+
+// null means "leave it": the user's own folders and Nonna's category folders.
 function categorize(name, isDir) {
   const ext = path.extname(name).slice(1).toLowerCase();
-  if (isDir && ext !== 'app') return 'Folders';
+  if (isDir && ext !== 'app') return null;
   if (SCREENSHOT_RE.test(name)) return 'Screenshots';
   for (const [cat, exts] of Object.entries(CATEGORIES)) {
     if (exts.includes(ext)) return cat;
@@ -40,7 +41,8 @@ function listMessyItems(desktopDir) {
   return fs
     .readdirSync(desktopDir, { withFileTypes: true })
     .filter((d) => !IGNORED.has(d.name) && !d.name.startsWith('.'))
-    .map((d) => ({ name: d.name, isDir: d.isDirectory() }));
+    .map((d) => ({ name: d.name, isDir: d.isDirectory(), category: categorize(d.name, d.isDirectory()) }))
+    .filter((item) => item.category && !(item.isDir && CATEGORY_NAMES.has(item.name)));
 }
 
 function clutterScore(desktopDir) {
@@ -60,20 +62,22 @@ function uniqueTarget(dir, name) {
 
 // Returns the planned moves without touching the filesystem.
 function plan(desktopDir) {
-  const tidyRoot = path.join(desktopDir, TIDY_DIR);
-  return listMessyItems(desktopDir).map(({ name, isDir }) => {
-    const category = categorize(name, isDir);
-    return { name, category, from: path.join(desktopDir, name), toDir: path.join(tidyRoot, category) };
-  });
+  return listMessyItems(desktopDir).map(({ name, category }) => ({
+    name,
+    category,
+    from: path.join(desktopDir, name),
+    toDir: path.join(desktopDir, category),
+  }));
 }
 
 // Moves one item and returns its log entry; used step by step so the
 // animation can sweep items away one at a time.
 function moveOne(step) {
-  fs.mkdirSync(step.toDir, { recursive: true });
+  const createdDir = !fs.existsSync(step.toDir);
+  if (createdDir) fs.mkdirSync(step.toDir);
   const to = uniqueTarget(step.toDir, step.name);
   fs.renameSync(step.from, to);
-  return { from: step.from, to, category: step.category, at: Date.now() };
+  return { from: step.from, to, category: step.category, createdDir, at: Date.now() };
 }
 
 function tidy(desktopDir) {
@@ -92,6 +96,14 @@ function undo(entries) {
     }
     fs.renameSync(e.to, e.from);
     restored.push(e);
+  }
+  // Remove category folders Nonna created, if nothing else ended up in them.
+  for (const e of entries) {
+    if (!e.createdDir) continue;
+    const dir = path.dirname(e.to);
+    try {
+      if (fs.readdirSync(dir).every((n) => IGNORED.has(n))) fs.rmSync(dir, { recursive: true });
+    } catch {}
   }
   return { restored, skipped };
 }
@@ -125,4 +137,4 @@ class MoveLog {
   }
 }
 
-module.exports = { TIDY_DIR, categorize, clutterScore, plan, moveOne, tidy, undo, MoveLog };
+module.exports = { CATEGORIES, categorize, clutterScore, plan, moveOne, tidy, undo, MoveLog };
